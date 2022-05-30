@@ -8,10 +8,6 @@ client = discord.Client()
 
 summoner_names = {'ßirdd', 'kpvols', 'WeinerCleaner', 'DirtyNuech', 'Dip Wickler', 'Śaint', 'Bhad Beetle', 'Moon Beetle', 'Sun Beetle', 'imlwl', 'Gusgusgusgusgus', 'DolphinTeeth', 'Sealane'}
 
-print(db.keys())
-print(db["accounts"])
-del db["accounts"]
-
 def register_account_info(summonerName):
   json_data = call_riot_api('https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + summonerName)
   if(json_data == "Failed"):
@@ -19,20 +15,24 @@ def register_account_info(summonerName):
   else:
     account_id = json_data['accountId']
     puuid = json_data['puuid']
+    accountExists = False
+    #If account table exists already.
     if "accounts" in db.keys():
-      #TO-DO: don't insert duplicates, update the original.
-      db["accounts"].append({summonerName: [account_id, puuid]})
+      #Loop through accounts to see if this one already exists.
+      for x in range(len(db["accounts"])):
+        if summonerName in db["accounts"][x].keys():
+          accountExists = True
+          db["accounts"][x][summonerName] = [account_id, puuid]
+          value = summonerName + ' is already registered.'
+          return value
+      #After looping through everything, account does not exist, so     insert.
+      if not accountExists:
+        db["accounts"].append({summonerName: [account_id, puuid]})
+    #Account table does not exist, create it and add new record.
     else:
       db["accounts"] = [{summonerName: [account_id, puuid]}]
 
-    #If our db already has a table for accounts, append value
-    #if "accounts" in db.keys():   
-    #  db["accounts"].append({summonerName: {account_id, puuid}})
-      
-    #Otherwise, create a table for accounts
-    #else:
-    #  db["accounts"] = [{summonerName: {account_id, puuid}}]
-      
+    #Finally, return our message.
     value = summonerName + ' registered. Account Id:' + account_id + '. PUUID: ' + puuid + '.'
     return value
     
@@ -81,13 +81,6 @@ async def on_message(message):
   if (message.content.startswith("!register") or message.content.startswith("/register")):
     messageContent = register_account_info("ßirdd")
     await message.channel.send(messageContent)
-    #for s in summoner_names:
-      #sumName, acct, puuid = register_account_info(s)
-      #await message.channel.send(smnName + ' registered. Account Id:' + acct + '. PUUID: ' + puuid + '.')
-      #print(s)
-
-  
-    
 
 #Run this code on your discord app/bot.
 client.run(os.getenv('DISCORD_TOKEN'))
