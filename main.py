@@ -9,36 +9,35 @@ client = discord.Client()
 summoner_names = {'ßirdd', 'kpvols', 'WeinerCleaner', 'DirtyNuech', 'Dip Wickler', 'Śaint', 'Bhad Beetle', 'Moon Beetle', 'Sun Beetle', 'imlwl', 'Gusgusgusgusgus', 'DolphinTeeth', 'Sealane'}
 
 def register_account_info(summonerName):
-  json_data_string = call_riot_api('https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + summonerName)
-  print(json_data_string)
-  if(json_data_string != "Failed"):
+  json_data = call_riot_api('https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + summonerName)
+  if(json_data == "Failed"):
     return
   else:
-    json_data = json.loads(json_data_string)
     account_id = json_data['accountId']
     puuid = json_data['puuid']
-    print(summonerName)
-    print(puuid)
-    print(account_id)
+
     #If our db already has a table for accounts, append value
-    #if "accounts" in db.keys():
-    #  accounts = db["accounts"]
-    #  accounts.append(summonerName, account_id, puuid)
-    #  db["accounts"] = accounts
+    if "accounts" in db.keys():
+      accounts = db["accounts"]
+      accounts.append(summonerName, account_id, puuid)
+      db["accounts"] = accounts
+      print('new account loaded into db: ' + summonerName, account_id, puuid)
     #Otherwise, create a table for accounts
-    #else:
-    #  db["accounts"] = [summonerName, account_id, puuid]
+    else:
+      db["accounts"] = [summonerName, account_id, puuid]
+      print('db created')
+      print('new account loaded into db: ' + summonerName, account_id, puuid)
+      
 
     return summonerName, account_id, puuid
     
 #This function will poll Riot's API to see if the summoner is in an active game.
 def poll_live_games(encryptedSummonerId):
-  json_data_string = call_riot_api('https://na1.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/' + encryptedSummonerId)
-  print(json_data_string)
-  if(json_data_string != "Failed"):
+  json_data = call_riot_api('https://na1.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/' + encryptedSummonerId)
+  print(json_data)
+  if(json_data == "Failed"):
     return
   else:
-    json_data = json.loads(json_data_string)
     print(json_data)
     game_type = json_data['gameType']
     print(game_type)
@@ -61,7 +60,8 @@ def call_riot_api(path):
   if(response.status_code != 200):
     return "Failed"
   else:
-    return response.text
+    json_data = json.loads(response.text)
+    return json_data
 
 
 
@@ -80,10 +80,10 @@ async def on_message(message):
       
   #if they call command !register
   if (message.content.startswith("!register") or message.content.startswith("/register")):
-    #smnName, acct, puuid = register_account_info("ßirdd")
+    register_account_info("ßirdd")
     #await message.channel.send(smnName + ' registered. Account Id:' + acct + '. PUUID: ' + puuid + '.')
-    for s in summoner_names:
-      sumName, acct, puuid = register_account_info(s)
+    #for s in summoner_names:
+      #sumName, acct, puuid = register_account_info(s)
       #await message.channel.send(smnName + ' registered. Account Id:' + acct + '. PUUID: ' + puuid + '.')
       #print(s)
 
