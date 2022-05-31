@@ -94,14 +94,12 @@ def poll_live_games(encryptedSummonerId, store=None):
 
 # This "main" function will go through all of our registered summoners and spawn a thread to check their status
 def threaded_poll_all_registered_summoners():
-  print("1")
   store = {}
   threads = []
   # If account table exists already.
   if "accounts" in db.keys():
     # Loop through accounts to create a thread for each one.
     for x in range(len(db["accounts"])):
-      print("loop " + str(x))
       summonerName = str(db["accounts"][x].value).split("'", 3)[1]
       summonerId = db["accounts"][x][summonerName][0]
       t = Thread(target=poll_live_games, args=(summonerId, store)) 
