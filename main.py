@@ -117,24 +117,24 @@ async def on_message(message):
   if message.author == client.user:
     return
   
-  # Command !summoner
-  if (message.content.startswith('!live-game') or message.content.startswith("/live-game")):
+  # Command /live-game
+  if message.content.startswith("/live-game"):
     messageContent = poll_live_games('n2CdunbUgnxL5bXxPWYWEvKSYdf0Ropy7fvshbNSdkNdSWk')
     await message.channel.send(messageContent)
       
-  # Command !register-summoner
+  # Command /register-summoner
   if message.content.startswith("/register-summoner"):
     summoner_name = message.content.split("/register-summoner ",1)[1]
     messageContent = register_account_info(summoner_name)
     await message.channel.send(messageContent)
 
-  # Command !deregister-summoner
+  # Command /deregister-summoner
   if message.content.startswith("/deregister-summoner"):
     summoner_name = message.content.split("/deregister-summoner ",1)[1]
     messageContent = deregister_account_info(summoner_name)
     await message.channel.send(messageContent)
 
-  # Command !summoners
+  # Command /summoners
   if message.content.startswith("/summoners"):
     messageContent = registered_summoners()
     await message.channel.send(messageContent)
