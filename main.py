@@ -3,11 +3,17 @@ import os
 import requests
 import json
 from replit import db
+from twisted.internet import task, reactor
 
-client = discord.Client()
+###############
+# To-do:
+# 1) Make looping through accounts async
+# 2) Limit number of registered summoners possible
+# 3) List all registered summoners
+###############
 
-summoner_names = {'ßirdd', 'kpvols', 'WeinerCleaner', 'DirtyNuech', 'Dip Wickler', 'Śaint', 'Bhad Beetle', 'Moon Beetle', 'Sun Beetle', 'imlwl', 'Gusgusgusgusgus', 'DolphinTeeth', 'Sealane'}
-
+### Registering/Deregistering ###
+# This function will add a summoner to our list to track, while grabbing info about them from Riot.
 def register_account_info(summonerName):
   json_data = call_riot_api('https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/' + summonerName)
   if(json_data == "Failed"):
@@ -16,27 +22,49 @@ def register_account_info(summonerName):
     account_id = json_data['accountId']
     puuid = json_data['puuid']
     accountExists = False
-    #If account table exists already.
+    # If account table exists already.
     if "accounts" in db.keys():
-      #Loop through accounts to see if this one already exists.
+      # Loop through accounts to see if this one already exists.
       for x in range(len(db["accounts"])):
         if summonerName in db["accounts"][x].keys():
           accountExists = True
           db["accounts"][x][summonerName] = [account_id, puuid]
           value = summonerName + ' is already registered.'
           return value
-      #After looping through everything, account does not exist, so     insert.
+      # After looping through everything, account does not exist, so     insert.
       if not accountExists:
         db["accounts"].append({summonerName: [account_id, puuid]})
-    #Account table does not exist, create it and add new record.
+    # Account table does not exist, create it and add new record.
     else:
       db["accounts"] = [{summonerName: [account_id, puuid]}]
 
-    #Finally, return our message.
-    value = summonerName + ' registered. Account Id:' + account_id + '. PUUID: ' + puuid + '.'
+    # Finally, return our message.
+    value = summonerName + ' registered. Their games will now be tracked.'
     return value
-    
-#This function will poll Riot's API to see if the summoner is in an active game.
+
+# This function will remove a tracked summoner from our list.
+def deregister_account_info(summonerName):
+   # If account table exists already.
+    if "accounts" in db.keys():
+      accountExists = False
+      # Loop through accounts to find this one and remove it.
+      for x in range(len(db["accounts"])):
+        if summonerName in db["accounts"][x].keys():
+          accountExists = True
+          del db["accounts"][x][summonerName]
+          value = summonerName + ' deregistered. Their games will no longer be tracked.'
+          return value
+      # After looping through everything, account does not exist, so let them know.
+      if not accountExists:
+        value = summonerName + ' is not registered.'
+        return value
+    # Account table does not exist, so they can't be registered.
+    else:
+      value = summonerName + ' is not registered.'
+      return value
+
+### Polling for live games ###      
+# This function will hit Riot's API to see if a specific summoner is in an active game.
 def poll_live_games(encryptedSummonerId):
   json_data = call_riot_api('https://na1.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/' + encryptedSummonerId)
   if(json_data == "Failed"):
@@ -52,7 +80,19 @@ def poll_live_games(encryptedSummonerId):
       value = summoner + ' just started a League match at ' + start_time + '. They locked in ' + champion + '.'
       return value
 
-#Standard code to hit riot API with key in header.
+# This function will go through all of our registered summoners and check their status
+def check_registered_summoners():
+  # If account table exists already.
+    if "accounts" in db.keys():
+      # Loop through accounts to poll each one.
+      # This should be async
+      for x in range(len(db["accounts"])):
+        print(db["accounts"][x].value)
+        
+          
+  
+### Base Functionality ###
+# Standard code to hit riot API with key in header.      
 def call_riot_api(path):
   headers = {'X-Riot-Token': os.getenv('RIOT_TOKEN')}
   response = requests.get(path, headers=headers);
@@ -62,25 +102,41 @@ def call_riot_api(path):
     json_data = json.loads(response.text)
     return json_data
 
-
-
-  
-#This will listen for a message event on the discord server.
+# Create a Discord client.
+client = discord.Client()
+    
+# This will listen for a message event on the Discord server.
 @client.event
 async def on_message(message):
-  #Ignore messages from the bot itself
+  # Ignore messages from the bot itself
   if message.author == client.user:
     return
   
-  #if they call command !summoner
+  # Command !summoner
   if (message.content.startswith('!summoner') or message.content.startswith("/summoner")):
     messageContent = poll_live_games('n2CdunbUgnxL5bXxPWYWEvKSYdf0Ropy7fvshbNSdkNdSWk')
     await message.channel.send(messageContent)
       
-  #if they call command !register
-  if (message.content.startswith("!register") or message.content.startswith("/register")):
-    messageContent = register_account_info("ßirdd")
+  # Command !register-summoner
+  if message.content.startswith("/register-summoner"):
+    summoner_name = message.content.split("/register-summoner ",1)[1]
+    messageContent = register_account_info(summoner_name)
     await message.channel.send(messageContent)
 
-#Run this code on your discord app/bot.
+  # Command !deregister-summoner
+  if message.content.startswith("/deregister-summoner"):
+    summoner_name = message.content.split("/deregister-summoner ",1)[1]
+    messageContent = deregister_account_info(summoner_name)
+    await message.channel.send(messageContent)
+
+# Run this code on your discord app/bot.
 client.run(os.getenv('DISCORD_TOKEN'))
+
+# Set our timeout for how often to poll (in seconds)
+timeout = 120.0
+
+# Looping call to call this after timeout period.
+l = task.LoopingCall(poll_live_games('n2CdunbUgnxL5bXxPWYWEvKSYdf0Ropy7fvshbNSdkNdSWk'))
+l.start(timeout)
+
+reactor.run()
