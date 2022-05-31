@@ -10,6 +10,7 @@ numpy = "^1.22.2"
 discord = "^1.7.3"
 requests = "^2.27.1"
 replit = "^3.2.4"
+Twisted = "^22.4.0"
 
 [tool.poetry.dev-dependencies]
 

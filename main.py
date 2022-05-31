@@ -8,8 +8,6 @@ from twisted.internet import task, reactor
 ###############
 # To-do:
 # 1) Make looping through accounts async
-# 2) Limit number of registered summoners possible
-# 3) List all registered summoners
 ###############
 
 ### Registering/Deregistering ###
@@ -24,6 +22,11 @@ def register_account_info(summonerName):
     accountExists = False
     # If account table exists already.
     if "accounts" in db.keys():
+      # Do not let more than 20 summoners be registered.
+      # This prevents us from hitting Riot's throttle limits.
+      if len(db["accounts"]) >= 20:
+        value = "The max number of summoners are registered."
+        return value
       # Loop through accounts to see if this one already exists.
       for x in range(len(db["accounts"])):
         if summonerName in db["accounts"][x].keys():
@@ -46,23 +49,24 @@ def register_account_info(summonerName):
 def deregister_account_info(summonerName):
    # If account table exists already.
     if "accounts" in db.keys():
-      accountExists = False
-      # Loop through accounts to find this one and remove it.
-      for x in range(len(db["accounts"])):
-        if summonerName in db["accounts"][x].keys():
-          accountExists = True
-          del db["accounts"][x][summonerName]
-          value = summonerName + ' deregistered. Their games will no longer be tracked.'
-          return value
-      # After looping through everything, account does not exist, so let them know.
-      if not accountExists:
-        value = summonerName + ' is not registered.'
-        return value
+      # Rebuild db["accounts"] without this record, faster than removing iteratively each item since you have to "dig" to remove each to not leave orphans.
+      db["accounts"] = [d for d in db["accounts"] if summonerName not in d.keys()]
+      value = summonerName + ' deregistered. Their games will no longer be tracked.'
+      return value
     # Account table does not exist, so they can't be registered.
     else:
       value = summonerName + ' is not registered.'
       return value
 
+# This function lists our registered summoners
+def registered_summoners():
+  if "accounts" in db.keys():
+    listOfSummoners = "We are tracking the following summoners."
+    # Loop through accounts to find this one and remove it.
+    for x in range(len(db["accounts"])):
+      listOfSummoners += '\n' + str(db["accounts"][x].value).split("'", 3)[1]
+    return listOfSummoners
+      
 ### Polling for live games ###      
 # This function will hit Riot's API to see if a specific summoner is in an active game.
 def poll_live_games(encryptedSummonerId):
@@ -82,12 +86,13 @@ def poll_live_games(encryptedSummonerId):
 
 # This function will go through all of our registered summoners and check their status
 def check_registered_summoners():
+  print("Hit!")
   # If account table exists already.
-    if "accounts" in db.keys():
-      # Loop through accounts to poll each one.
-      # This should be async
-      for x in range(len(db["accounts"])):
-        print(db["accounts"][x].value)
+  if "accounts" in db.keys():
+    # Loop through accounts to poll each one.
+    # This should be async
+    for x in range(len(db["accounts"])):
+      print(db["accounts"][x].value[0])
         
           
   
@@ -113,7 +118,7 @@ async def on_message(message):
     return
   
   # Command !summoner
-  if (message.content.startswith('!summoner') or message.content.startswith("/summoner")):
+  if (message.content.startswith('!live-game') or message.content.startswith("/live-game")):
     messageContent = poll_live_games('n2CdunbUgnxL5bXxPWYWEvKSYdf0Ropy7fvshbNSdkNdSWk')
     await message.channel.send(messageContent)
       
@@ -129,14 +134,19 @@ async def on_message(message):
     messageContent = deregister_account_info(summoner_name)
     await message.channel.send(messageContent)
 
+  # Command !summoners
+  if message.content.startswith("/summoners"):
+    messageContent = registered_summoners()
+    await message.channel.send(messageContent)
+
 # Run this code on your discord app/bot.
 client.run(os.getenv('DISCORD_TOKEN'))
 
 # Set our timeout for how often to poll (in seconds)
-timeout = 120.0
+timeout = 60.0
 
 # Looping call to call this after timeout period.
-l = task.LoopingCall(poll_live_games('n2CdunbUgnxL5bXxPWYWEvKSYdf0Ropy7fvshbNSdkNdSWk'))
+l = task.LoopingCall(check_registered_summoners())
 l.start(timeout)
 
 reactor.run()
