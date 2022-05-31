@@ -7,10 +7,11 @@ from threading import Thread
 
 ###############
 # To-do:
-# 1) Make polling our threaded accounts happen every 5 minutes
+# 1) Make polling our threaded requests happen every 5 minutes
 ###############
-
-#db.clear()
+# Shoutouts
+# https://stackoverflow.com/questions/16982569/making-multiple-api-calls-in-parallel-using-python-ipython
+###############
 
 ### Registering/Deregistering ###
 # This function will add a summoner to our list to track, while grabbing info about them from Riot.
@@ -37,7 +38,7 @@ def register_account_info(summonerName):
           db["accounts"][x][summonerName] = [summoner_id, account_id, puuid]
           value = summonerName + ' is already registered.'
           return value
-      # After looping through everything, account does not exist, so     insert.
+      # After looping through everything, account does not exist, so insert.
       if not accountExists:
         db["accounts"].append({summonerName: [summoner_id, account_id, puuid]})
     # Account table does not exist, create it and add new record.
@@ -73,13 +74,12 @@ def registered_summoners():
 ### Polling for live games ###      
 # This function will hit Riot's API to see if a specific summoner is in an active game.
 def poll_live_games(encryptedSummonerId, store=None):
-  print("2")
   if store is None:
     store = {}
-  value = ""
   json_data = call_riot_api('https://na1.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/' + encryptedSummonerId)
   if(json_data == "Failed"):
     value = "Summoner is not in a game."
+    store[encryptedSummonerId] = value
   else:
     game_type = json_data['gameType']
     player_count  = json_data['participants'].count
@@ -90,8 +90,7 @@ def poll_live_games(encryptedSummonerId, store=None):
       summoner = encryptedSummonerId
       value = summoner + ' is in a League of Legends game! The match started at ' + start_time + '. They locked in ' + champion + '.'
     store[encryptedSummonerId] = value
-    print(value)
-    return store
+  return store
 
 # This "main" function will go through all of our registered summoners and spawn a thread to check their status
 def threaded_poll_all_registered_summoners():
