@@ -3,12 +3,14 @@ import os
 import requests
 import json
 from replit import db
-from twisted.internet import task, reactor
+from threading import Thread
 
 ###############
 # To-do:
-# 1) Make looping through accounts async
+# 1) Make polling our threaded accounts happen every 5 minutes
 ###############
+
+#db.clear()
 
 ### Registering/Deregistering ###
 # This function will add a summoner to our list to track, while grabbing info about them from Riot.
@@ -17,6 +19,7 @@ def register_account_info(summonerName):
   if(json_data == "Failed"):
     return "Failed to register info."
   else:
+    summoner_id = json_data['id']
     account_id = json_data['accountId']
     puuid = json_data['puuid']
     accountExists = False
@@ -31,15 +34,15 @@ def register_account_info(summonerName):
       for x in range(len(db["accounts"])):
         if summonerName in db["accounts"][x].keys():
           accountExists = True
-          db["accounts"][x][summonerName] = [account_id, puuid]
+          db["accounts"][x][summonerName] = [summoner_id, account_id, puuid]
           value = summonerName + ' is already registered.'
           return value
       # After looping through everything, account does not exist, so     insert.
       if not accountExists:
-        db["accounts"].append({summonerName: [account_id, puuid]})
+        db["accounts"].append({summonerName: [summoner_id, account_id, puuid]})
     # Account table does not exist, create it and add new record.
     else:
-      db["accounts"] = [{summonerName: [account_id, puuid]}]
+      db["accounts"] = [{summonerName: [summoner_id, account_id, puuid]}]
 
     # Finally, return our message.
     value = summonerName + ' registered. Their games will now be tracked.'
@@ -69,10 +72,14 @@ def registered_summoners():
       
 ### Polling for live games ###      
 # This function will hit Riot's API to see if a specific summoner is in an active game.
-def poll_live_games(encryptedSummonerId):
+def poll_live_games(encryptedSummonerId, store=None):
+  print("2")
+  if store is None:
+    store = {}
+  value = ""
   json_data = call_riot_api('https://na1.api.riotgames.com/lol/spectator/v4/active-games/by-summoner/' + encryptedSummonerId)
   if(json_data == "Failed"):
-    return "Summoner is not in a game."
+    value = "Summoner is not in a game."
   else:
     game_type = json_data['gameType']
     player_count  = json_data['participants'].count
@@ -81,19 +88,31 @@ def poll_live_games(encryptedSummonerId):
       start_time = json_data['gameStartTime']
       champion = json_data['championId']
       summoner = encryptedSummonerId
-      value = summoner + ' just started a League match at ' + start_time + '. They locked in ' + champion + '.'
-      return value
+      value = summoner + ' is in a League of Legends game! The match started at ' + start_time + '. They locked in ' + champion + '.'
+    store[encryptedSummonerId] = value
+    print(value)
+    return store
 
-# This function will go through all of our registered summoners and check their status
-def check_registered_summoners():
-  print("Hit!")
+# This "main" function will go through all of our registered summoners and spawn a thread to check their status
+def threaded_poll_all_registered_summoners():
+  print("1")
+  store = {}
+  threads = []
   # If account table exists already.
   if "accounts" in db.keys():
-    # Loop through accounts to poll each one.
-    # This should be async
+    # Loop through accounts to create a thread for each one.
     for x in range(len(db["accounts"])):
-      print(db["accounts"][x].value[0])
-        
+      print("loop " + str(x))
+      summonerName = str(db["accounts"][x].value).split("'", 3)[1]
+      summonerId = db["accounts"][x][summonerName][0]
+      t = Thread(target=poll_live_games, args=(summonerId, store)) 
+      threads.append(t)
+
+    # start the threads
+    [ t.start() for t in threads ]
+    # wait for the threads to finish
+    [ t.join() for t in threads ]
+    return store
           
   
 ### Base Functionality ###
@@ -119,8 +138,10 @@ async def on_message(message):
   
   # Command /live-game
   if message.content.startswith("/live-game"):
-    messageContent = poll_live_games('n2CdunbUgnxL5bXxPWYWEvKSYdf0Ropy7fvshbNSdkNdSWk')
-    await message.channel.send(messageContent)
+    #messageContent = poll_live_games('n2CdunbUgnxL5bXxPWYWEvKSYdf0Ropy7fvshbNSdkNdSWk')
+    #await message.channel.send(messageContent)
+    value = threaded_poll_all_registered_summoners()
+    print(value)
       
   # Command /register-summoner
   if message.content.startswith("/register-summoner"):
@@ -141,12 +162,3 @@ async def on_message(message):
 
 # Run this code on your discord app/bot.
 client.run(os.getenv('DISCORD_TOKEN'))
-
-# Set our timeout for how often to poll (in seconds)
-timeout = 60.0
-
-# Looping call to call this after timeout period.
-l = task.LoopingCall(check_registered_summoners())
-l.start(timeout)
-
-reactor.run()
