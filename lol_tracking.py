@@ -1,8 +1,22 @@
 import os
+import discord
+from discord.ext import commands
 import requests
 import json
 from threading import Thread
 from replit import db
+
+###############
+# To-do:
+# 1a) When we see a match started via polling, post it to discord.
+# 1b) When we see a match started, track it in database.
+# 2) When summoner is no longer in match, get results.
+# 2a) Find players most recent match using /lol/match/v5/matches/by-puuid/{puuid}/ids
+# 2b) Find the specific match using	/lol/match/v5/matches/{matchId}
+# 2c) Find the summoner name in participants, within participant find teamid, then up a level within info find teams, find correct teamid, then find win (true or false)
+# 3) Remove match from database.
+# 4) Polling service to remove match if in database > 2 hours
+############### 
 
 ### Registering/Deregistering ###
 # This function will add a summoner to our list to track, while grabbing info about them from Riot.
